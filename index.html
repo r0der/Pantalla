@@ -431,6 +431,31 @@ body {
 }
 .modal-btn-plat:hover { opacity: .85; }
 
+/* ── VIDEO EMBED ── */
+.modal-video-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 */
+  background: #000;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+.modal-video-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.modal-no-trailer {
+  background: var(--bg-3);
+  border-radius: 16px 16px 0 0;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--hint);
+  font-size: 13px;
+}
+
 /* ── STATES ── */
 .global-loading {
   text-align: center; padding: 4rem 2rem;
@@ -582,13 +607,7 @@ body {
 <!-- MODAL DETALLE -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
   <div class="modal" id="modalBox">
-    <div class="modal-poster-wrap">
-      <img id="modalPoster" class="modal-poster" src="" alt="" onerror="this.style.display='none';document.getElementById('modalPosterPh').style.display='flex'">
-      <div id="modalPosterPh" class="modal-poster-ph" style="display:none"><i class="ti ti-movie"></i></div>
-      <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open')">
-        <i class="ti ti-x"></i>
-      </button>
-    </div>
+    <!-- la cabecera (video o poster) se inyecta dinámicamente por abrirModal() -->
     <div class="modal-body">
       <div class="modal-plat" id="modalPlat"></div>
       <div class="modal-title" id="modalTitle"></div>
@@ -603,7 +622,7 @@ body {
 // ════════════════════════════════════════════
 // CONFIGURACIÓN
 // ════════════════════════════════════════════
-const TMDB_KEY = '9627cd94853d64a7d441421ab67aceed';
+const TMDB_KEY = 'TU_TMDB_KEY_AQUI';
 // Obtenés tu key gratis en: https://www.themoviedb.org/signup
 // Settings → API → Request an API Key → Developer
 
@@ -684,12 +703,19 @@ async function fetchItems(providerId, type, extraParams = {}, limit = 50) {
     }
   }
 
-  // Deduplicar y ordenar por puntaje
+  // Deduplicar
   const seen = new Set();
-  return all
-    .filter(x => { if (seen.has(x.id)) return false; seen.add(x.id); return true; })
-    .sort((a, b) => b.vote_average - a.vote_average)
-    .slice(0, limit);
+  const deduped = all.filter(x => { if (seen.has(x.id)) return false; seen.add(x.id); return true; });
+
+  // Shuffle ponderado: los mejor puntuados tienen más chances de aparecer,
+  // pero hay aleatoriedad para que cada visita se vea diferente.
+  // Técnica: asignar peso = puntaje + ruido aleatorio, luego ordenar.
+  const shuffled = deduped
+    .map(x => ({ x, w: (x.vote_average || 0) + Math.random() * 2.5 }))
+    .sort((a, b) => b.w - a.w)
+    .map(o => o.x);
+
+  return shuffled.slice(0, limit);
 }
 
 // UNA sola request por item: detalle + videos juntos (evita 429)
@@ -1052,15 +1078,8 @@ function crearCard(item, idx) {
         <button class="btn-ver-mas" id="btn-${uid}" onclick="toggleSinopsis('${uid}')">Ver más ↓</button>
       </div>
       <div class="card-actions">
-        <a class="btn-trailer" href="${item.trailerUrl}" target="_blank" rel="noopener">
-          <i class="ti ti-player-play" style="font-size:11px"></i> Ver trailer
-        </a>
-        <a class="btn-platform" href="${item.platUrl}" target="_blank" rel="noopener"
-           style="background:${platColor};color:${platText}">
-          <i class="ti ti-external-link" style="font-size:11px"></i> Ver en ${esc(item.plataforma)}
-        </a>
-        <button class="btn-trailer" onclick='abrirModal(${JSON.stringify(item).replace(/'/g,"&#39;")})' style="font-size:11px">
-          <i class="ti ti-info-circle" style="font-size:11px"></i> Ver detalle
+        <button class="btn-trailer" onclick='abrirModal(${JSON.stringify(item).replace(/'/g,"&#39;")})'>
+          <i class="ti ti-player-play" style="font-size:11px"></i> Ver trailer / Detalle
         </button>
       </div>
     </div>`;
@@ -1091,21 +1110,37 @@ function toggleSinopsis(uid) {
 function abrirModal(item) {
   const platDef   = PLATFORMS.find(p => p.name === item.plataforma) || {};
   const platColor = platDef.color || '#444';
-  const platText  = platDef.tc || '#fff';
   const dur = item.tipo === 'movie' ? fmtDur(item.runtime)
     : item.episodes ? `${item.episodes} episodios` : null;
 
-  const poster = document.getElementById('modalPoster');
-  const posterPh = document.getElementById('modalPosterPh');
-  if (item.poster_lg) {
-    poster.src = item.poster_lg;
-    poster.alt = item.titulo;
-    poster.style.display = 'block';
-    posterPh.style.display = 'none';
-  } else {
-    poster.style.display = 'none';
-    posterPh.style.display = 'flex';
-  }
+  // Extraer videoId de YouTube de la URL
+  const videoId = (() => {
+    if (!item.trailerUrl) return null;
+    const m = item.trailerUrl.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  })();
+
+  // Parte superior: video embed si hay trailer, sino poster
+  const modalBox = document.getElementById('modalBox');
+  const topHtml = videoId
+    ? `<div class="modal-video-wrap">
+         <iframe
+           src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1"
+           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+           allowfullscreen>
+         </iframe>
+         <button class="modal-close" onclick="cerrarModal()"><i class="ti ti-x"></i></button>
+       </div>`
+    : item.poster_lg
+      ? `<div class="modal-poster-wrap">
+           <img class="modal-poster" src="${item.poster_lg}" alt="${esc(item.titulo)}">
+           <button class="modal-close" onclick="cerrarModal()"><i class="ti ti-x"></i></button>
+         </div>`
+      : `<div class="modal-no-trailer">
+           <i class="ti ti-video-off" style="font-size:32px;display:block;margin-bottom:8px"></i>
+           Sin trailer disponible
+           <button class="modal-close" onclick="cerrarModal()" style="position:absolute;top:12px;right:12px"><i class="ti ti-x"></i></button>
+         </div>`;
 
   document.getElementById('modalPlat').textContent = item.plataforma;
   document.getElementById('modalPlat').style.color = platColor;
@@ -1120,30 +1155,33 @@ function abrirModal(item) {
     ...(item.generos || []).slice(0, 2).map(g => `<span class="pill pill-genre">${esc(g)}</span>`),
   ].join('');
 
-  document.getElementById('modalActions').innerHTML = `
-    <a class="modal-btn-trailer" href="${item.trailerUrl}" target="_blank" rel="noopener">
-      <i class="ti ti-player-play"></i> Ver trailer (subtítulos español)
-    </a>
-    <a class="modal-btn-plat" href="${item.platUrl}" target="_blank" rel="noopener"
-       style="background:${platColor};color:${platText}">
-      <i class="ti ti-external-link"></i> Ver en ${esc(item.plataforma)}
-    </a>`;
+  // Inyectar la parte superior del modal dinámicamente
+  modalBox.querySelector('.modal-poster-wrap, .modal-video-wrap, .modal-no-trailer')?.remove();
+  modalBox.insertAdjacentHTML('afterbegin', topHtml);
+
+  // Sin botones de acción extra (trailer ya está embebido)
+  document.getElementById('modalActions').innerHTML = videoId ? '' :
+    `<a class="modal-btn-trailer" href="${item.trailerUrl}" target="_blank" rel="noopener">
+       <i class="ti ti-external-link"></i> Abrir en YouTube
+     </a>`;
 
   document.getElementById('modalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
+function cerrarModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  // Detener video: reemplazar el iframe para cortar el audio
+  const iframe = document.querySelector('.modal-video-wrap iframe');
+  if (iframe) iframe.src = iframe.src;
+}
+
 function closeModal(e) {
-  if (e.target === document.getElementById('modalOverlay')) {
-    document.getElementById('modalOverlay').classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  if (e.target === document.getElementById('modalOverlay')) cerrarModal();
 }
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    document.getElementById('modalOverlay').classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  if (e.key === 'Escape') cerrarModal();
 });
 
 // ════════════════════════════════════════════
