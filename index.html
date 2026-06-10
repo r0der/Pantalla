@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PANTALLA — Lo mejor del streaming</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<!-- Tipografía sistema Apple (SF Pro / San Francisco) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -21,8 +20,8 @@
   --muted:        #888;
   --hint:         #444;
   --accent:       #E50914;
-  --ff-head:      'Syne', sans-serif;
-  --ff-body:      'DM Sans', sans-serif;
+  --ff-head:      -apple-system, 'SF Pro Display', BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --ff-body:      -apple-system, 'SF Pro Text', BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --r-card:       12px;
   --r-sm:         7px;
 }
@@ -237,6 +236,17 @@ body {
 }
 .card:hover { border-color: var(--border-2); transform: translateY(-3px); }
 .card-img-wrap { position: relative; }
+.card-type-badge {
+  position: absolute; bottom: 8px; right: 8px;
+  font-size: 9px; font-weight: 700;
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 999px;
+  z-index: 2;
+  backdrop-filter: blur(4px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .card-rank {
   position: absolute; top: 8px; left: 8px;
   font-family: var(--ff-head);
@@ -431,6 +441,31 @@ body {
 }
 .modal-btn-plat:hover { opacity: .85; }
 
+/* ── VIDEO EMBED ── */
+.modal-video-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 */
+  background: #000;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+.modal-video-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.modal-no-trailer {
+  background: var(--bg-3);
+  border-radius: 16px 16px 0 0;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--hint);
+  font-size: 13px;
+}
+
 /* ── STATES ── */
 .global-loading {
   text-align: center; padding: 4rem 2rem;
@@ -549,11 +584,12 @@ body {
     <div class="filter-group">
       <label>Año</label>
       <select id="anio">
-        <option value="">Todos (últimos 36 meses)</option>
+        <option value="">Todos los años</option>
         <option value="2026">2026</option>
         <option value="2025">2025</option>
         <option value="2024">2024</option>
         <option value="2023">2023</option>
+        <option value="2022">2022</option>
       </select>
     </div>
   </div>
@@ -582,13 +618,7 @@ body {
 <!-- MODAL DETALLE -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
   <div class="modal" id="modalBox">
-    <div class="modal-poster-wrap">
-      <img id="modalPoster" class="modal-poster" src="" alt="" onerror="this.style.display='none';document.getElementById('modalPosterPh').style.display='flex'">
-      <div id="modalPosterPh" class="modal-poster-ph" style="display:none"><i class="ti ti-movie"></i></div>
-      <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open')">
-        <i class="ti ti-x"></i>
-      </button>
-    </div>
+    <!-- la cabecera (video o poster) se inyecta dinámicamente por abrirModal() -->
     <div class="modal-body">
       <div class="modal-plat" id="modalPlat"></div>
       <div class="modal-title" id="modalTitle"></div>
@@ -644,52 +674,83 @@ async function tmdb(path, params = {}) {
   return r.json();
 }
 
-// Descubrir contenido: sin mínimo de votos para garantizar resultados
-// con cualquier combinación de filtros. Prioriza recientes (últimos 36m).
+// Mapas de género nombre → ID de TMDB
+const GENRE_MOVIE = { 'Acción':28,'Comedia':35,'Drama':18,'Terror':27,'Suspense':53,'Ciencia ficción':878,'Animación':16,'Documental':99,'Romance':10749,'Crimen':80,'Fantasía':14,'Aventura':12 };
+const GENRE_TV    = { 'Acción':10759,'Comedia':35,'Drama':18,'Terror':9648,'Suspense':9648,'Ciencia ficción':10765,'Animación':16,'Documental':99,'Romance':10749,'Crimen':80,'Fantasía':10765,'Aventura':10759 };
+
+// Traducir filtros UI → parámetros de TMDB Discover
+function buildDiscoverParams(type, { duracion, anio, genero } = {}) {
+  const p = {};
+
+  // Duración (solo para películas — TMDB no soporta runtime filter en TV)
+  if (type === 'movie' && duracion) {
+    if (duracion === 'corta')  { p['with_runtime.lte'] = 89; }
+    if (duracion === 'media')  { p['with_runtime.gte'] = 90; p['with_runtime.lte'] = 120; }
+    if (duracion === 'larga')  { p['with_runtime.gte'] = 121; }
+  }
+
+  // Año
+  if (anio) {
+    if (type === 'movie') {
+      p['primary_release_date.gte'] = `${anio}-01-01`;
+      p['primary_release_date.lte'] = `${anio}-12-31`;
+    } else {
+      p['first_air_date.gte'] = `${anio}-01-01`;
+      p['first_air_date.lte'] = `${anio}-12-31`;
+    }
+  }
+
+  // Género
+  if (genero) {
+    const map = type === 'movie' ? GENRE_MOVIE : GENRE_TV;
+    const gid = map[genero];
+    if (gid) p['with_genres'] = gid;
+  }
+
+  return p;
+}
+
 async function discover(providerId, type, page = 1, extraParams = {}) {
   const params = {
     watch_region: 'AR',
     with_watch_providers: providerId,
-    sort_by: 'vote_average.desc',
+    sort_by: 'popularity.desc',   // popularidad para pool inicial; shuffleamos después
     page,
-    // Sin vote_count.gte fijo — se maneja con fallback abajo
     ...extraParams,
   };
   return tmdb(`/discover/${type}`, params);
 }
 
-// Obtiene hasta `limit` resultados con fallback progresivo si hay pocos
-async function fetchItems(providerId, type, extraParams = {}, limit = 50) {
+// Fetch con filtros pasados a TMDB (no al cliente)
+// Trae hasta `pages` páginas (20 items c/u) con los filtros ya aplicados en la API
+async function fetchFiltered(providerId, type, tmdbFilters = {}, pages = 5) {
   let all = [];
+  let totalPages = 1;
 
-  // Intento 1: con mínimo de votos razonable
-  for (let p = 1; p <= 3 && all.length < limit; p++) {
+  for (let p = 1; p <= pages && p <= totalPages; p++) {
     const d = await discover(providerId, type, p, {
-      'vote_count.gte': 30,
-      ...extraParams,
+      'vote_count.gte': 5,
+      ...tmdbFilters,
     });
+    totalPages = Math.min(d.total_pages || 1, pages);
     all.push(...(d.results || []));
-    if ((d.results || []).length < 20) break;
+    if (p < totalPages) await sleep(150); // pequeña pausa entre páginas
   }
 
-  // Fallback: si hay menos de 10 resultados, sin restricción de votos
+  // Si vino muy poco, reintentar sin mínimo de votos
   if (all.length < 10) {
-    const fallback = await discover(providerId, type, 1, {
-      'vote_count.gte': 0,
-      ...extraParams,
-    });
+    const { 'vote_count.gte': _, ...filtersNoVotes } = tmdbFilters;
+    const d2 = await discover(providerId, type, 1, { 'vote_count.gte': 0, ...filtersNoVotes });
     const ids = new Set(all.map(x => x.id));
-    for (const r of (fallback.results || [])) {
+    for (const r of (d2.results || [])) {
       if (!ids.has(r.id)) all.push(r);
     }
   }
 
-  // Deduplicar y ordenar por puntaje
+  // Deduplicar y mezclar
   const seen = new Set();
-  return all
-    .filter(x => { if (seen.has(x.id)) return false; seen.add(x.id); return true; })
-    .sort((a, b) => b.vote_average - a.vote_average)
-    .slice(0, limit);
+  const deduped = all.filter(x => { if (seen.has(x.id)) return false; seen.add(x.id); return true; });
+  return shuffle(deduped);
 }
 
 // UNA sola request por item: detalle + videos juntos (evita 429)
@@ -713,6 +774,16 @@ function pickTrailerKey(detail) {
 
 // Espera N ms (throttle entre lotes)
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Mezcla real Fisher-Yates
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 function getPlatformUrl(platName, titulo) {
   const q = encodeURIComponent(titulo);
@@ -827,10 +898,13 @@ async function cargarTodo() {
   document.getElementById('globalLoading').style.display = 'none';
 }
 
-async function cargarPlataforma(plat) {
-  // Traer lista de IDs (solo 1-2 requests por tipo, sin detalle aún)
-  const raw   = await fetchItems(plat.id, 'movie', dateParams('movie'), 50);
-  const rawTv = await fetchItems(plat.id, 'tv',    dateParams('tv'),    50);
+async function cargarPlataforma(plat, tmdbFilters = {}) {
+  // Traer listas desde TMDB ya filtradas (duración, año, género en la query)
+  const movieFilters = { ...dateParams('movie'), ...tmdbFilters.movie };
+  const tvFilters    = { ...dateParams('tv'),    ...tmdbFilters.tv    };
+
+  const raw   = await fetchFiltered(plat.id, 'movie', movieFilters, 5);
+  const rawTv = await fetchFiltered(plat.id, 'tv',    tvFilters,    5);
 
   // Armar lista con tipo marcado
   const all = [
@@ -853,10 +927,7 @@ async function cargarPlataforma(plat) {
 
     // Mostrar los primeros 10 tan pronto estén disponibles (UX progresiva)
     if (enriched.length >= 10 && STATE[plat.name].allItems.length === 0) {
-      const sorted = [...enriched].sort((a, b) =>
-        parseFloat(b.puntaje) - parseFloat(a.puntaje)
-      );
-      STATE[plat.name].allItems = sorted;
+      STATE[plat.name].allItems = shuffle(enriched);
       setSeccionLoading(plat.name, false);
       aplicarFiltrosASeccion(plat);
     }
@@ -864,10 +935,8 @@ async function cargarPlataforma(plat) {
     if (i + BATCH < all.length) await sleep(PAUSE);
   }
 
-  // Ordenar final por puntaje
-  enriched.sort((a, b) => parseFloat(b.puntaje) - parseFloat(a.puntaje));
-
-  STATE[plat.name].allItems = enriched;
+  // Mezclar resultado final
+  STATE[plat.name].allItems = shuffle(enriched);
   setSeccionLoading(plat.name, false);
   aplicarFiltrosASeccion(plat);
 }
@@ -896,11 +965,11 @@ function crearSeccion(plat) {
       </div>
       <button class="nav-btn nav-next" onclick="navScroll('trk-${key}',1)" aria-label="Siguiente"><i class="ti ti-chevron-right"></i></button>
     </div>
-    <div class="load-more-wrap" id="lm-${key}">
-      <button class="btn-load-more" onclick="cargarMas('${plat.name}')">
-        <i class="ti ti-plus"></i> Cargar más
-      </button>
+    <div class="load-more-wrap" id="lm-${key}" style="display:none">
+      <span class="spinner" style="margin-right:6px"></span> Cargando más...
     </div>`;
+  // Observar el último card del track para auto-cargar
+  setTimeout(() => setupObserver('${plat.name}'), 200);
   document.getElementById('sections').appendChild(el);
 }
 
@@ -908,12 +977,24 @@ function setSeccionLoading(platName, loading) {
   STATE[platName].loading = loading;
 }
 
-function aplicarFiltrosASeccion(plat) {
-  const tipo     = document.getElementById('tipo').value;
+// Construir los filtros TMDB a partir de los selects actuales
+function getCurrentTmdbFilters() {
   const genero   = document.getElementById('genero').value;
   const duracion = document.getElementById('duracion').value;
   const anio     = document.getElementById('anio').value;
+
+  // Filtros que se aplican en TMDB (duración solo para movies)
+  const movieParams = buildDiscoverParams('movie', { duracion, anio, genero });
+  const tvParams    = buildDiscoverParams('tv',    { duracion, anio, genero });
+  return { movie: movieParams, tv: tvParams };
+}
+
+function aplicarFiltrosASeccion(plat) {
+  const tipo     = document.getElementById('tipo').value;
   const filtPlat = document.getElementById('plataforma').value;
+  const genero   = document.getElementById('genero').value;
+  const duracion = document.getElementById('duracion').value;
+  const anio     = document.getElementById('anio').value;
 
   const key  = platKey(plat.name);
   const sec  = document.getElementById(`sec-${key}`);
@@ -923,64 +1004,133 @@ function aplicarFiltrosASeccion(plat) {
 
   if (!sec) return;
 
-  // Ocultar sección si no es la plataforma seleccionada
-  if (filtPlat && filtPlat !== plat.name) {
-    sec.classList.add('hidden'); return;
-  }
+  // Ocultar si filtramos por otra plataforma
+  if (filtPlat && filtPlat !== plat.name) { sec.classList.add('hidden'); return; }
   sec.classList.remove('hidden');
 
+  // ¿Hay filtros que requieren nueva búsqueda en TMDB?
+  const needsReload = genero || duracion || anio;
+
+  if (needsReload) {
+    // Recargar desde TMDB con los filtros correctos
+    const trk = document.getElementById(`trk-${key}`);
+    trk.innerHTML = `<div style="padding:2rem 1rem;color:var(--hint);font-size:13px;display:flex;align-items:center;gap:8px"><span class="spinner"></span> Filtrando en TMDB...</div>`;
+    emp.classList.remove('on');
+    cnt.textContent = '';
+
+    const tmdbFilters = getCurrentTmdbFilters();
+    // Si es solo series o solo películas, ignorar el tipo no pedido
+    const doMovie = tipo !== 'serie';
+    const doTv    = tipo !== 'pelicula' && !(duracion && ['corta','media','larga'].includes(duracion)); // runtime filter solo existe en movies
+
+    const platObj = plat;
+    recargarConFiltros(platObj, tmdbFilters, doMovie, doTv);
+    return;
+  }
+
+  // Sin filtros especiales: usar pool base ya cargado
   if (!STATE[plat.name] || STATE[plat.name].loading) return;
 
   let items = STATE[plat.name].allItems;
-
-  // Filtrar tipo
   if (tipo === 'pelicula') items = items.filter(x => x.tipo === 'movie');
   if (tipo === 'serie')    items = items.filter(x => x.tipo === 'tv');
 
-  // Filtrar género
-  if (genero) {
-    items = items.filter(x =>
-      (x.generos || []).some(g => g.toLowerCase().includes(genero.toLowerCase()))
-    );
+  renderTrack(plat, items, trk => document.getElementById(`trk-${key}`));
+}
+
+// Recarga real desde TMDB con filtros combinados
+async function recargarConFiltros(plat, tmdbFilters, doMovie = true, doTv = true) {
+  const key = platKey(plat.name);
+  const trk = document.getElementById(`trk-${key}`);
+  const emp = document.getElementById(`emp-${key}`);
+  const cnt = document.getElementById(`cnt-${key}`);
+
+  try {
+    const [raw, rawTv] = await Promise.all([
+      doMovie ? fetchFiltered(plat.id, 'movie', { ...dateParams('movie'), ...tmdbFilters.movie }, 5) : Promise.resolve([]),
+      doTv    ? fetchFiltered(plat.id, 'tv',    { ...dateParams('tv'),    ...tmdbFilters.tv    }, 5) : Promise.resolve([]),
+    ]);
+
+    const all = [
+      ...raw.map(x => ({ item: x, type: 'movie' })),
+      ...rawTv.map(x => ({ item: x, type: 'tv' })),
+    ];
+
+    if (all.length === 0) {
+      trk.innerHTML = '';
+      emp.classList.add('on');
+      cnt.textContent = '';
+      return;
+    }
+
+    // Enriquecer en lotes
+    const BATCH = 5, PAUSE = 350;
+    const enriched = [];
+    for (let i = 0; i < all.length; i += BATCH) {
+      const batch = all.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(({ item, type }) => enrichItem(item, type, plat.name)));
+      enriched.push(...results.filter(Boolean));
+
+      // Render progresivo
+      if (enriched.length >= 5 && trk.querySelector('.spinner')) {
+        trk.innerHTML = '';
+        enriched.forEach((item, i) => trk.appendChild(crearCard(item, i)));
+        STATE[plat.name].displayed = enriched.length;
+        STATE[plat.name].filtered = enriched;
+        STATE[plat.name]._loadingMore = false;
+        cnt.textContent = `Mostrando ${enriched.length}...`;
+      }
+
+      if (i + BATCH < all.length) await sleep(PAUSE);
+    }
+
+    // Render final completo
+    const final = shuffle(enriched);
+    trk.innerHTML = '';
+    final.slice(0, 10).forEach((item, i) => trk.appendChild(crearCard(item, i)));
+    STATE[plat.name].filtered = final;
+    STATE[plat.name].displayed = Math.min(10, final.length);
+    STATE[plat.name]._loadingMore = false;
+    emp.classList.remove('on');
+    cnt.textContent = `Mostrando ${STATE[plat.name].displayed} de ${final.length}`;
+
+    if (final.length > 10) setTimeout(() => setupObserver(plat.name), 100);
+
+  } catch(e) {
+    console.error('Error filtrando', plat.name, e);
+    trk.innerHTML = '';
+    emp.classList.add('on');
   }
+}
 
-  // Filtrar duración
-  if (duracion) items = items.filter(x => matchDuracion(x, duracion));
+// Helper: renderizar track desde items ya en memoria
+function renderTrack(plat, items) {
+  const key = platKey(plat.name);
+  const trk = document.getElementById(`trk-${key}`);
+  const emp = document.getElementById(`emp-${key}`);
+  const cnt = document.getElementById(`cnt-${key}`);
+  const lm  = document.getElementById(`lm-${key}`);
 
-  // Filtrar año
-  if (anio) items = items.filter(x => matchAnio(x, anio));
-
-  // Guardar filtrados en state
+  trk.innerHTML = '';
   STATE[plat.name].filtered = items;
   STATE[plat.name].displayed = 0;
-
-  const trk = document.getElementById(`trk-${key}`);
-  trk.innerHTML = '';
+  STATE[plat.name]._loadingMore = false;
 
   if (items.length === 0) {
     emp.classList.add('on');
     cnt.textContent = '';
-    lm.classList.remove('on');
+    if (lm) lm.style.display = 'none';
     return;
   }
 
   emp.classList.remove('on');
-
-  // Mostrar primeros 10
   const show = items.slice(0, 10);
   show.forEach((item, i) => trk.appendChild(crearCard(item, i)));
   STATE[plat.name].displayed = show.length;
 
-  cnt.textContent = `Top ${show.length} de ${items.length}`;
-
-  // Botón "cargar más" si hay más de 10
-  if (items.length > 10) {
-    lm.classList.add('on');
-    const btn = lm.querySelector('.btn-load-more');
-    if (btn) { btn.classList.remove('loading-more'); btn.innerHTML = '<i class="ti ti-plus"></i> Cargar más'; }
-  } else {
-    lm.classList.remove('on');
-  }
+  cnt.textContent = `Mostrando ${show.length} de ${items.length}`;
+  if (lm) lm.style.display = 'none';
+  if (items.length > 10) setTimeout(() => setupObserver(plat.name), 100);
 }
 
 function cargarMas(platName) {
@@ -1014,6 +1164,68 @@ function cargarMas(platName) {
 }
 
 // ════════════════════════════════════════════
+// AUTO-LOAD (IntersectionObserver)
+// ════════════════════════════════════════════
+const observers = {};
+
+function setupObserver(platName) {
+  const key = platKey(platName);
+  const trk = document.getElementById(`trk-${key}`);
+  if (!trk) return;
+  if (observers[platName]) observers[platName].disconnect();
+
+  const sentinel = document.createElement('div');
+  sentinel.className = 'sentinel';
+  sentinel.style.cssText = 'flex:0 0 1px;height:1px;align-self:stretch;';
+  trk.appendChild(sentinel);
+
+  const obs = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting) {
+      const state = STATE[platName];
+      if (state && state.filtered && state.displayed < state.filtered.length && !state._loadingMore) {
+        autoCargarMas(platName);
+      }
+    }
+  }, { root: trk, threshold: 0.1 });
+
+  obs.observe(sentinel);
+  observers[platName] = obs;
+}
+
+function autoCargarMas(platName) {
+  const state = STATE[platName];
+  if (!state || !state.filtered || state._loadingMore) return;
+  if (state.displayed >= state.filtered.length) return;
+
+  state._loadingMore = true;
+  const key  = platKey(platName);
+  const trk  = document.getElementById(`trk-${key}`);
+  const lm   = document.getElementById(`lm-${key}`);
+  const cnt  = document.getElementById(`cnt-${key}`);
+  if (lm) lm.style.display = 'flex';
+
+  setTimeout(() => {
+    const desde = state.displayed;
+    const hasta = Math.min(desde + 10, state.filtered.length);
+    const nuevos = state.filtered.slice(desde, hasta);
+
+    // Quitar sentinel temporal
+    const sentinel = trk.querySelector('.sentinel');
+    if (sentinel) sentinel.remove();
+
+    nuevos.forEach((item, i) => trk.appendChild(crearCard(item, desde + i)));
+    state.displayed = hasta;
+
+    if (cnt) cnt.textContent = `Mostrando ${hasta} de ${state.filtered.length}`;
+    if (lm) lm.style.display = 'none';
+
+    state._loadingMore = false;
+    // Re-setup del observer para el nuevo final
+    if (hasta < state.filtered.length) setupObserver(platName);
+  }, 400);
+}
+
+// ════════════════════════════════════════════
 // CARD
 // ════════════════════════════════════════════
 function crearCard(item, idx) {
@@ -1028,9 +1240,11 @@ function crearCard(item, idx) {
 
   const card = document.createElement('div');
   card.className = 'card';
+  card.style.cursor = 'pointer';
   card.innerHTML = `
     <div class="card-img-wrap">
       <span class="card-rank">#${idx + 1}</span>
+      <span class="card-type-badge" style="${item.tipo === 'movie' ? 'background:rgba(229,9,20,0.85)' : 'background:rgba(0,21,255,0.75)'}">${item.tipo === 'movie' ? 'Película' : 'Serie'}</span>
       ${item.poster_sm
         ? `<img class="card-poster" src="${item.poster_sm}" alt="${esc(item.titulo)}" loading="lazy"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
@@ -1049,19 +1263,7 @@ function crearCard(item, idx) {
       ${genero ? `<div style="margin-bottom:7px"><span class="pill pill-genre">${esc(genero)}</span></div>` : ''}
       <div class="syn-wrap">
         <div class="card-syn" id="${uid}">${esc(item.sinopsis) || 'Sin sinopsis disponible.'}</div>
-        <button class="btn-ver-mas" id="btn-${uid}" onclick="toggleSinopsis('${uid}')">Ver más ↓</button>
-      </div>
-      <div class="card-actions">
-        <a class="btn-trailer" href="${item.trailerUrl}" target="_blank" rel="noopener">
-          <i class="ti ti-player-play" style="font-size:11px"></i> Ver trailer
-        </a>
-        <a class="btn-platform" href="${item.platUrl}" target="_blank" rel="noopener"
-           style="background:${platColor};color:${platText}">
-          <i class="ti ti-external-link" style="font-size:11px"></i> Ver en ${esc(item.plataforma)}
-        </a>
-        <button class="btn-trailer" onclick='abrirModal(${JSON.stringify(item).replace(/'/g,"&#39;")})' style="font-size:11px">
-          <i class="ti ti-info-circle" style="font-size:11px"></i> Ver detalle
-        </button>
+        <button class="btn-ver-mas" id="btn-${uid}">Ver más ↓</button>
       </div>
     </div>`;
 
@@ -1073,6 +1275,9 @@ function crearCard(item, idx) {
       btnEl.classList.add('on');
     }
   });
+
+  // Click en cualquier parte de la card abre el modal
+  card.addEventListener('click', () => abrirModal(item));
 
   return card;
 }
@@ -1091,21 +1296,37 @@ function toggleSinopsis(uid) {
 function abrirModal(item) {
   const platDef   = PLATFORMS.find(p => p.name === item.plataforma) || {};
   const platColor = platDef.color || '#444';
-  const platText  = platDef.tc || '#fff';
   const dur = item.tipo === 'movie' ? fmtDur(item.runtime)
     : item.episodes ? `${item.episodes} episodios` : null;
 
-  const poster = document.getElementById('modalPoster');
-  const posterPh = document.getElementById('modalPosterPh');
-  if (item.poster_lg) {
-    poster.src = item.poster_lg;
-    poster.alt = item.titulo;
-    poster.style.display = 'block';
-    posterPh.style.display = 'none';
-  } else {
-    poster.style.display = 'none';
-    posterPh.style.display = 'flex';
-  }
+  // Extraer videoId de YouTube de la URL
+  const videoId = (() => {
+    if (!item.trailerUrl) return null;
+    const m = item.trailerUrl.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  })();
+
+  // Parte superior: video embed si hay trailer, sino poster
+  const modalBox = document.getElementById('modalBox');
+  const topHtml = videoId
+    ? `<div class="modal-video-wrap">
+         <iframe
+           src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1"
+           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+           allowfullscreen>
+         </iframe>
+         <button class="modal-close" onclick="cerrarModal()"><i class="ti ti-x"></i></button>
+       </div>`
+    : item.poster_lg
+      ? `<div class="modal-poster-wrap">
+           <img class="modal-poster" src="${item.poster_lg}" alt="${esc(item.titulo)}">
+           <button class="modal-close" onclick="cerrarModal()"><i class="ti ti-x"></i></button>
+         </div>`
+      : `<div class="modal-no-trailer">
+           <i class="ti ti-video-off" style="font-size:32px;display:block;margin-bottom:8px"></i>
+           Sin trailer disponible
+           <button class="modal-close" onclick="cerrarModal()" style="position:absolute;top:12px;right:12px"><i class="ti ti-x"></i></button>
+         </div>`;
 
   document.getElementById('modalPlat').textContent = item.plataforma;
   document.getElementById('modalPlat').style.color = platColor;
@@ -1120,30 +1341,33 @@ function abrirModal(item) {
     ...(item.generos || []).slice(0, 2).map(g => `<span class="pill pill-genre">${esc(g)}</span>`),
   ].join('');
 
-  document.getElementById('modalActions').innerHTML = `
-    <a class="modal-btn-trailer" href="${item.trailerUrl}" target="_blank" rel="noopener">
-      <i class="ti ti-player-play"></i> Ver trailer (subtítulos español)
-    </a>
-    <a class="modal-btn-plat" href="${item.platUrl}" target="_blank" rel="noopener"
-       style="background:${platColor};color:${platText}">
-      <i class="ti ti-external-link"></i> Ver en ${esc(item.plataforma)}
-    </a>`;
+  // Inyectar la parte superior del modal dinámicamente
+  modalBox.querySelector('.modal-poster-wrap, .modal-video-wrap, .modal-no-trailer')?.remove();
+  modalBox.insertAdjacentHTML('afterbegin', topHtml);
+
+  // Sin botones de acción extra (trailer ya está embebido)
+  document.getElementById('modalActions').innerHTML = videoId ? '' :
+    `<a class="modal-btn-trailer" href="${item.trailerUrl}" target="_blank" rel="noopener">
+       <i class="ti ti-external-link"></i> Abrir en YouTube
+     </a>`;
 
   document.getElementById('modalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
+function cerrarModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  // Detener video: reemplazar el iframe para cortar el audio
+  const iframe = document.querySelector('.modal-video-wrap iframe');
+  if (iframe) iframe.src = iframe.src;
+}
+
 function closeModal(e) {
-  if (e.target === document.getElementById('modalOverlay')) {
-    document.getElementById('modalOverlay').classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  if (e.target === document.getElementById('modalOverlay')) cerrarModal();
 }
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    document.getElementById('modalOverlay').classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  if (e.key === 'Escape') cerrarModal();
 });
 
 // ════════════════════════════════════════════
@@ -1153,6 +1377,9 @@ function aplicarFiltros() {
   PLATFORMS.forEach(plat => aplicarFiltrosASeccion(plat));
   actualizarResInfo();
 }
+
+// resetFiltros también limpia los filtros TMDB y recarga el pool base
+
 
 function resetFiltros() {
   ['tipo','genero','plataforma','duracion','anio'].forEach(id => {
