@@ -1020,6 +1020,7 @@ body {
           <li><i class="ti ti-check ok"></i> Carga infinita de contenido</li>
           <li><i class="ti ti-check ok"></i> Todos los filtros dinámicos</li>
           <li><i class="ti ti-check ok"></i> Favoritos ilimitados</li>
+          <li><i class="ti ti-check ok"></i> Marcar como visto</li>
           <li><i class="ti ti-check ok"></i> Trailers en el momento</li>
           <li><i class="ti ti-check ok"></i> Badge ⭐ en tu perfil</li>
         </ul>
@@ -1029,7 +1030,7 @@ body {
       </div>
 
     </div>
-    <p style="text-align:center;font-size:11px;color:var(--hint);margin-top:.5rem">Cancelá cuando quieras · Pago seguro con Stripe</p>
+    <p style="text-align:center;font-size:11px;color:var(--hint);margin-top:.5rem">Cancelá cuando quieras · Pago seguro</p>
   </div>
 </div>
 
@@ -1865,7 +1866,7 @@ function renderTrack(plat, items) {
   if (items.length > planLimit) {
     const msg = userPlan === 'anon'
       ? ['Registrate gratis', 'y ve hasta 20']
-      : ['Suscribite a Premium', 'y cargá hasta 100'];
+      : ['Suscribite a Premium', 'para carga ilimitada'];
     const lockCard = document.createElement('div');
     lockCard.className = 'card';
     lockCard.style.cssText = 'flex:0 0 140px;cursor:pointer;position:relative;min-height:320px;';
