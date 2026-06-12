@@ -252,14 +252,9 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
 
   <!-- LOGO -->
   <div class="logo-wrap">
-    <div class="logo-icon">
-      <svg viewBox="0 0 26 26" fill="none"><rect x="2" y="4" width="22" height="14" rx="2.5" fill="white" opacity=".95"/><rect x="8" y="18" width="10" height="2" rx="1" fill="white" opacity=".7"/><rect x="6" y="20" width="14" height="2" rx="1" fill="white" opacity=".5"/><polygon points="10,8 10,14 17,11" fill="#E50914"/></svg>
-    </div>
-    <div>
-      <div class="logo-text">PANTA<span>YA</span></div>
-      <div class="logo-sub">Elegí rápido, mirá ya</div>
-    </div>
-  </div>
+  <img src="logo pantaYA.png" alt="PantaYA" style="height:35px;object-fit:contain">
+  <div class="logo-sub">Elegí rápido, mirá ya</div>
+</div>
 
   <!-- FILTROS -->
   <div class="filters" id="filtersBar">
@@ -281,7 +276,10 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
         <option value="Disney+">Disney+</option>
         <option value="Apple TV+">Apple TV+</option>
         <option value="Paramount+">Paramount+</option>
-      </select>
+        <option value="Pluto TV">Pluto TV</option>
+        <option value="Tubi">Tubi</option>
+        <option value="Plex">Plex</option>
+        </select>
     </div>
     <div class="fg locked" id="fgGenero">
       <label>Categoría</label>
@@ -406,7 +404,7 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
       </div>
       <div class="plan-card">
         <div class="plan-icon">🎬</div>
-        <div class="plan-name">Free</div>
+        <div class="plan-name">Registro</div>
         <div class="plan-price">Gratis <small>con cuenta</small></div>
         <ul class="plan-feats">
           <li><i class="ti ti-check ok"></i> Top 20 por plataforma</li>
@@ -799,14 +797,51 @@ async function cargarPlataforma(plat, filtros={}) {
   const tp = buildTmdbParams('tv',    {anio,genero});
 
   const [raw, rawTv] = await Promise.all([
-    fetchMultiRegion(plat.id,'movie',mp,3),
-    fetchMultiRegion(plat.id,'tv',   tp,3),
-  ]);
+  fetchMultiRegion(plat.id,'movie',mp, filtros.anio||filtros.genero ? 3 : 1),
+  fetchMultiRegion(plat.id,'tv',   tp, filtros.anio||filtros.genero ? 3 : 1),
+]);
 
   const all = [
     ...raw.map(x=>({item:x,type:'movie'})),
     ...rawTv.map(x=>({item:x,type:'tv'})),
   ];
+
+  async function cargarMasPlataforma(plat) {
+  const key = platKey(plat.name);
+  if(STATE[plat.name]?.loadingMore) return;
+  STATE[plat.name].loadingMore = true;
+
+  const filtros = getFiltrosActivos();
+  const mp = buildTmdbParams('movie', filtros);
+  const tp = buildTmdbParams('tv',    filtros);
+  const paginaActual = STATE[plat.name].pagina || 1;
+  const nextPage = paginaActual + 1;
+  if(nextPage > 5) { STATE[plat.name].loadingMore = false; return; }
+
+  const [raw, rawTv] = await Promise.all([
+    fetchMultiRegion(plat.id,'movie',{...mp, page: nextPage}, 1),
+    fetchMultiRegion(plat.id,'tv',   {...tp, page: nextPage}, 1),
+  ]);
+
+  const nuevos = [...raw.map(x=>({item:x,type:'movie'})), ...rawTv.map(x=>({item:x,type:'tv'}))];
+  const enriched = (await Promise.all(nuevos.map(({item,type})=>enrichItem(item,type,plat.name)))).filter(Boolean);
+
+  const idsExistentes = new Set(STATE[plat.name].allItems.map(x=>String(x.id)));
+  const sinDuplicados = enriched.filter(x => !idsExistentes.has(String(x.id)));
+
+  STATE[plat.name].allItems.push(...sinDuplicados);
+  STATE[plat.name].pagina = nextPage;
+  STATE[plat.name].loadingMore = false;
+
+  renderTrack(plat, aplicarFiltrosLocales(STATE[plat.name].allItems));
+}
+
+function getFiltrosActivos() {
+  return {
+    genero: document.getElementById('genero')?.value || '',
+    anio:   document.getElementById('anio')?.value   || '',
+  };
+}
 
   // Enriquecer siempre hasta 200 items — el display lo controla renderTrack
   const BATCH=5, PAUSE=350;
@@ -930,6 +965,15 @@ function crearSeccion(plat) {
       <button class="nav-btn nav-next" onclick="navScroll('trk-${key}',1)"><i class="ti ti-chevron-right"></i></button>
     </div>`;
   document.getElementById('sections').appendChild(el);
+  const trk = document.getElementById(`trk-${key}`);
+  if(trk) {
+    trk.addEventListener('scroll', () => {
+      if(trk.scrollLeft + trk.clientWidth >= trk.scrollWidth - 200) {
+        cargarMasPlataforma(plat);
+      }
+    });
+  }
+
 }
 
 function renderTrack(plat, items) {
@@ -953,8 +997,8 @@ function renderTrack(plat, items) {
   // Card de upgrade si hay más del límite
   if(items.length > limit) {
     const msgs = {
-      anon:  { title:'Registrate gratis',    sub:'Ve hasta 20 títulos sin costo', cta:'Crear cuenta →' },
-      free:  { title:'Suscribite a Premium', sub:'Accedé a +200 títulos',         cta:'Ver planes →' },
+      anon:  { title:'Registrate gratis',    sub:'Carga 20 títulos sin costo', cta:'Crear cuenta' },
+      free:  { title:'Suscribite a Premium', sub:'Accedé a +200 títulos',         cta:'Ver planes' },
     };
     const m = msgs[userPlan];
     if(m) {
@@ -1105,8 +1149,8 @@ function abrirModal(item) {
   document.getElementById('modalCta').innerHTML = ctaHtml;
 
   document.getElementById('modalMeta').innerHTML = [
+    item.tipo?`<span class="pill pill-year">${item.tipo==='movie'?'Película':'Serie'}</span>`:'',
     item.puntaje?`<span class="pill pill-score"><i class="ti ti-star-filled" style="font-size:9px"></i> ${item.puntaje}</span>`:'',
-    item.tipo?`<span class="pill pill-year">${item.tipo==='movie'?'🎬 Película':'📺 Serie'}</span>`:'',
     item.anio?`<span class="pill pill-year">${item.anio}</span>`:'',
     dur?`<span class="pill pill-dur"><i class="ti ti-clock" style="font-size:9px"></i> ${dur}</span>`:'',
     ...(item.generos||[]).slice(0,2).map(g=>`<span class="pill pill-genre">${esc(g)}</span>`),
