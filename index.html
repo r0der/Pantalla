@@ -187,6 +187,8 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
 .cta-free{background:var(--text);color:var(--bg)}
 .cta-prem{background:var(--gold);color:#111}
 .plans-footer{text-align:center;font-size:11px;color:var(--hint);margin-top:.5rem}
+.detail-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.detail-actions{display:flex;gap:8px;flex-shrink:0;}
 
 /* FAVORITOS / VISTO SECTION */
 .user-section{margin-bottom:2.75rem}
@@ -430,6 +432,15 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
         </button>
       </div>
     </div>
+
+    <div style="text-align:center;margin-top:16px">
+    <a href="#"
+     onclick="loginGoogle();cerrarPlanes();return false;"
+     style="color:#fff;opacity:.8;text-decoration:none">
+     ¿Ya tenés cuenta? Iniciar sesión
+    </a>
+    </div>
+    
     <p class="plans-footer">Cancelá cuando quieras · Pago seguro con Stripe</p>
   </div>
 </div>
@@ -441,11 +452,28 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
       <!-- inyectado dinámicamente -->
     </div>
     <div class="modal-body">
-      <div class="modal-plat" id="modalPlat"></div>
-      <div class="modal-title" id="modalTitle"></div>
-      <div class="modal-meta" id="modalMeta"></div>
-      <div class="modal-syn" id="modalSyn"></div>
+
+  <div class="modal-plat" id="modalPlat"></div>
+
+  <div class="detail-title-row">
+
+    <div class="modal-title" id="modalTitle"></div>
+
+    <div class="detail-actions">
+
+      <button class="modal-icon-btn" id="modalVistoBtn"></button>
+
+      <button class="modal-icon-btn" id="modalFavBtn"></button>
+
     </div>
+
+  </div>
+
+  <div class="modal-meta" id="modalMeta"></div>
+
+  <div class="modal-syn" id="modalSyn"></div>
+
+</div>
   </div>
 </div>
 
@@ -1029,26 +1057,27 @@ function abrirModal(item) {
     topHtml = `<div class="modal-poster-ph"><i class="ti ti-movie"></i></div>`;
   }
 
-  // Botones top-left (fav + visto) + close
+  // Botones close
   const btnsHtml = `
-    <div class="modal-top-btns">
-      <button class="modal-icon-btn ${isFav?'fav-active':''} ${esPrem?'':'locked-btn'}" id="modalFavBtn"
-        title="${esPrem?(isFav?'Quitar favorito':'Agregar favorito'):'Solo Premium'}"
-        onclick="${esPrem?'toggleFavModal()':'abrirPlanes()'}">
-        <i class="ti ti-heart${isFav?'-filled':''}"></i>
-      </button>
-      <button class="modal-icon-btn ${isVisto?'seen-active':''} ${esPrem?'':'locked-btn'}" id="modalVistoBtn"
-        title="${esPrem?(isVisto?'Quitar de Ya vi':'Marcar como visto'):'Solo Premium'}"
-        onclick="${esPrem?'toggleVistoModal()':'abrirPlanes()'}">
-        <i class="ti ti-eye${isVisto?'-check':''}"></i>
-      </button>
-    </div>
+    
     <button class="modal-close" onclick="cerrarModal()"><i class="ti ti-x"></i></button>`;
 
   document.getElementById('modalTopWrap').innerHTML = topHtml + btnsHtml;
   document.getElementById('modalPlat').textContent   = item.plataforma;
   document.getElementById('modalPlat').style.color   = platDef.color||'#888';
   document.getElementById('modalTitle').textContent  = item.titulo;
+  document.getElementById('modalVistoBtn').className =
+  `modal-icon-btn ${isVisto?'seen-active':''} ${esPrem?'':'locked-btn'}`;
+  document.getElementById('modalVistoBtn').innerHTML =
+  `<i class="ti ti-eye${isVisto?'-check':''}"></i>`;
+  document.getElementById('modalVistoBtn').onclick = () =>
+  esPrem ? toggleVistoModal() : abrirPlanes();
+  document.getElementById('modalFavBtn').className =
+  `modal-icon-btn ${isFav?'fav-active':''} ${esPrem?'':'locked-btn'}`;
+  document.getElementById('modalFavBtn').innerHTML =
+  `<i class="ti ti-heart${isFav?'-filled':''}"></i>`;
+  document.getElementById('modalFavBtn').onclick = () =>
+  esPrem ? toggleFavModal() : abrirPlanes();
   document.getElementById('modalSyn').textContent    = item.sinopsis||'Sin sinopsis disponible.';
 
   document.getElementById('modalMeta').innerHTML = [
@@ -1092,7 +1121,7 @@ async function toggleFav(item, btn) {
   // Sync Firestore
   try {
     const ref = doc(db,'users',currentUser.uid);
-    await setDoc(ref, { favs: userFavs, [`items.${id}`]: was ? null : item }, { merge:true });
+    await updateDoc(ref,{favs:userFavs,[`items.${id}`]: item});
   } catch(e) {}
   showToast(was ? 'Eliminado de favoritos' : '❤ Agregado a favoritos');
   renderUserSections();
@@ -1117,7 +1146,7 @@ async function toggleVisto(item, btn) {
   if(overlay) overlay.classList.toggle('on',!was);
   try {
     const ref = doc(db,'users',currentUser.uid);
-    await setDoc(ref, { visto: userVisto, [`vistoItems.${id}`]: was ? null : item }, { merge:true });
+    await updateDoc(ref,{visto:userVisto,[`vistoItems.${id}`]: item});
   } catch(e) {}
   showToast(was ? 'Quitado de Ya vi' : '✓ Marcado como visto');
   renderUserSections();
