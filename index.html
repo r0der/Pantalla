@@ -1100,67 +1100,97 @@ function cerrarModal() {
 // FAVORITOS & VISTO
 // ══════════════════════════════════════
 async function toggleFav(item, btn) {
-  if(!currentUser||userPlan!=='premium') { abrirPlanes(); return; }
+  if (!currentUser || userPlan !== 'premium') {
+    abrirPlanes();
+    return;
+  }
+
   const id  = String(item.id);
   const was = userFavs.includes(id);
-  if(was) {
-    userFavs = userFavs.filter(x=>x!==id);
+
+  if (was) {
+    userFavs = userFavs.filter(x => x !== id);
     delete favItems[id];
   } else {
     userFavs.push(id);
     favItems[id] = item;
   }
-  // Update UI inmediato
-  if(btn) {
 
-      if(btn.id === 'modalFavBtn'){
-        btn.classList.toggle('fav-active', !was);
-      }else{
-        btn.classList.toggle('active', !was);
-      }
+  // UI inmediata (modal o card)
+  if (btn) {
+    if (btn.id === 'modalFavBtn') {
+      btn.classList.toggle('fav-active', !was);
+    } else {
+      btn.classList.toggle('active', !was);
+    }
 
-    btn.innerHTML = `<i class="ti ti-heart"></i>`;
+    btn.innerHTML = `<i class="ti ti-heart${!was ? '-filled' : ''}"></i>`;
   }
-  // Sync Firestore
+
   try {
-    const ref = doc(db,'users',currentUser.uid);
-    await updateDoc(ref,{favs:userFavs,[`items.${id}`]: item});
-  } catch(e) {}
+    const ref = doc(db, 'users', currentUser.uid);
+    await updateDoc(ref, {
+      favs: userFavs,
+      [`items.${id}`]: item
+    });
+  } catch (e) {}
+
   showToast(was ? 'Eliminado de favoritos' : '❤ Agregado a favoritos');
+
+  // 🔥 1. actualiza listas laterales
   renderUserSections();
-  // Actualizar todos los botones con este id
-  document.querySelectorAll(`.fav-btn[data-id="${id}"]`).forEach(b=>{
-    b.classList.toggle('active',userFavs.includes(id));
-  });
+
+  // 🔥 2. actualiza card puntual si existe
+  updateCardFavState(id, !was);
+
+  // 🔥 3. sincroniza HOME (ESTO te faltaba)
+  refreshHome();
 }
 
 async function toggleVisto(item, btn) {
-  if(!currentUser||userPlan!=='premium') { abrirPlanes(); return; }
+  if (!currentUser || userPlan !== 'premium') {
+    abrirPlanes();
+    return;
+  }
+
   const id  = String(item.id);
   const was = userVisto.includes(id);
-  if(was) { userVisto=userVisto.filter(x=>x!==id); delete vistoItems[id]; }
-  else    { userVisto.push(id); vistoItems[id]=item; }
-  if(btn) {
 
-    if(btn.id === 'modalVistoBtn'){
+  if (was) {
+    userVisto = userVisto.filter(x => x !== id);
+    delete vistoItems[id];
+  } else {
+    userVisto.push(id);
+    vistoItems[id] = item;
+  }
+
+  // UI del botón (modal o card)
+  if (btn) {
+    if (btn.id === 'modalVistoBtn') {
       btn.classList.toggle('seen-active', !was);
-    }else{
+    } else {
       btn.classList.toggle('active', !was);
     }
 
     btn.innerHTML =
-      `<i class="ti ti-eye${!was?'-check':''}"></i>`;
+      `<i class="ti ti-eye${!was ? '-check' : ''}"></i>`;
   }
-  // Actualizar overlay en la card
+
+  // 🔥 1. actualizar la card visible (si existe)
   updateCardSeenState(id, !was);
 
   try {
-    const ref = doc(db,'users',currentUser.uid);
-    await updateDoc(ref,{visto:userVisto,[`vistoItems.${id}`]: item});
-  } catch(e) {}
+    const ref = doc(db, 'users', currentUser.uid);
+    await updateDoc(ref, {
+      visto: userVisto,
+      [`vistoItems.${id}`]: item
+    });
+  } catch (e) {}
+
   showToast(was ? 'Quitado de ya visto' : '✓ Marcado como visto');
-  renderUserSections();
-  
+
+  // 🔥 2. IMPORTANTE: sincronizar HOME completa
+  refreshHome();
 }
 
 setTimeout(() => {
@@ -1175,6 +1205,25 @@ function updateCardSeenState(id, isSeen) {
 
   const overlay = card.querySelector('.card-seen-overlay');
   if (overlay) overlay.classList.toggle('on', isSeen);
+}
+
+function refreshHome() {
+  PLATFORMS.forEach(plat=>{
+    const sec=document.getElementById(`sec-${platKey(plat.name)}`);
+    if(sec && STATE[plat.name]?.allItems?.length>0){
+      renderTrack(plat, aplicarFiltrosLocales(STATE[plat.name].allItems));
+    }
+  });
+}
+
+function updateCardFavState(id, isFav) {
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card) return;
+
+  card.classList.toggle('fav', isFav);
+
+  const btn = card.querySelector('.fav-btn');
+  if (btn) btn.classList.toggle('active', isFav);
 }
 
 function toggleFavModal()   { if(modalItem) { toggleFav(modalItem,  document.getElementById('modalFavBtn'));   } }
