@@ -106,10 +106,11 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
 .card-img-btns{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:flex-end;gap:5px;padding:0 8px;z-index:3}
 .card-img-btn{width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.72);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(4px);transition:color .15s,background .15s;font-size:13px;color:var(--muted)}
 .card-img-btn:hover{background:rgba(0,0,0,.9)}
-.card-img-btn.fav-btn:hover,.card-img-btn.fav-btn.active{color:#E50914}
+.card-img-btn.fav-btn:hover{color:#E50914}
+.card-img-btn.fav-btn.active{background:#E50914;color:#fff}
 .card-img-btn.seen-btn:hover,.card-img-btn.seen-btn.active{color:var(--green)}
 .card-img-btn.locked-btn{opacity:.45;cursor:pointer}
-.fav-btn.active{color:#E50914;}
+.fav-btn.active{background:#E50914;color:#fff;}
 .seen-btn.active{color:var(--green);}
 /* Overlay visto */
 .card.seen{background:rgba(0,180,100,.08);border-color:rgba(0,180,100,.3);}
@@ -165,9 +166,9 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
 .modal-icon-btn.locked-btn{opacity:.45;}
 
 /* PLANES MODAL */
-.plans-overlay{position:fixed;inset:0;background:rgba(0,0,0,.93);backdrop-filter:blur(10px);z-index:3000;display:none;align-items:center;justify-content:center;padding:1rem;overflow-y:auto}
+.plans-overlay{position:fixed;inset:0;background:rgba(0,0,0,.93);backdrop-filter:blur(10px);z-index:3000;display:none;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .plans-overlay.open{display:flex}
-.plans-box{background:var(--bg2);border:.5px solid var(--bd2);border-radius:22px;max-width:800px;width:100%;padding:2rem 1.75rem;position:relative}
+.plans-box{background:var(--bg2);border:.5px solid var(--bd2);border-radius:22px;max-width:800px;width:100%;padding:2rem 1.75rem;position:relative;margin:auto 0}
 .plans-close{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:50%;background:var(--bg3);border:.5px solid var(--bd2);color:var(--muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .plans-close:hover{background:var(--bg4)}
 .plans-header{text-align:center;margin-bottom:1.75rem}
@@ -1126,9 +1127,7 @@ async function toggleFav(item, btn) {
       btn.classList.toggle('active', !was);
     }
 
-    btn.innerHTML = `
-      <i class="ti ti-heart${!was ? '-filled' : ''}"></i>
-    `;
+    btn.innerHTML = `<i class="ti ti-heart"></i>`;
   }
 
   try {
