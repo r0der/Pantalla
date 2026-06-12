@@ -552,6 +552,9 @@ async function loginGoogle() {
   cerrarPlanes();
   try { await signInWithPopup(auth, gprov); }
   catch(e) { if(e.code !== 'auth/popup-closed-by-user') showToast('Error al iniciar sesión'); }
+  await initUserData();
+  refreshHome();
+  renderUserSections();
 }
 async function signOut() {
   await fbSignOut(auth);
@@ -787,7 +790,7 @@ async function cargarPlataforma(plat, filtros={}) {
   // Enriquecer siempre hasta 200 items — el display lo controla renderTrack
   const BATCH=5, PAUSE=350;
   const enriched=[];
-  const MAX_ENRICH = Math.min(all.length, 200);
+  const MAX_ENRICH = Math.min(all.length, 300);
 
   for(let i=0; i<MAX_ENRICH; i+=BATCH) {
     const batch = all.slice(i,i+BATCH);
@@ -1105,7 +1108,7 @@ async function toggleFav(item, btn) {
     return;
   }
 
-  const id  = String(item.id);
+  const id = String(item.id);
   const was = userFavs.includes(id);
 
   if (was) {
@@ -1116,7 +1119,6 @@ async function toggleFav(item, btn) {
     favItems[id] = item;
   }
 
-  // UI inmediata (modal o card)
   if (btn) {
     if (btn.id === 'modalFavBtn') {
       btn.classList.toggle('fav-active', !was);
@@ -1125,8 +1127,8 @@ async function toggleFav(item, btn) {
     }
 
     btn.innerHTML = `
-  <i class="ti ti-heart${!was ? '-filled' : ''}"></i>
-  `;
+      <i class="ti ti-heart${!was ? '-filled' : ''}"></i>
+    `;
   }
 
   try {
@@ -1139,11 +1141,8 @@ async function toggleFav(item, btn) {
 
   showToast(was ? 'Eliminado de favoritos' : '❤ Agregado a favoritos');
 
-  // 🔥 1. actualiza listas laterales
-  renderUserSections();
-
-  // 🔥 2. sincroniza HOME (ESTO te faltaba)
   refreshHome();
+  renderUserSections();
 }
 
 async function toggleVisto(item, btn) {
@@ -1152,7 +1151,7 @@ async function toggleVisto(item, btn) {
     return;
   }
 
-  const id  = String(item.id);
+  const id = String(item.id);
   const was = userVisto.includes(id);
 
   if (was) {
@@ -1163,7 +1162,6 @@ async function toggleVisto(item, btn) {
     vistoItems[id] = item;
   }
 
-  // UI del botón (modal o card)
   if (btn) {
     if (btn.id === 'modalVistoBtn') {
       btn.classList.toggle('seen-active', !was);
@@ -1171,8 +1169,9 @@ async function toggleVisto(item, btn) {
       btn.classList.toggle('active', !was);
     }
 
-    btn.innerHTML =
-      `<i class="ti ti-eye${!was ? '-check' : ''}"></i>`;
+    btn.innerHTML = `
+      <i class="ti ti-eye${!was ? '-check' : ''}"></i>
+    `;
   }
 
   try {
@@ -1185,8 +1184,8 @@ async function toggleVisto(item, btn) {
 
   showToast(was ? 'Quitado de ya visto' : '✓ Marcado como visto');
 
-  // 🔥 2. IMPORTANTE: sincronizar HOME completa
   refreshHome();
+  renderUserSections();
 }
 
 setTimeout(() => {
@@ -1341,6 +1340,24 @@ cargarTodo();
 if(!sessionStorage.getItem('plansSeen')) {
   sessionStorage.setItem('plansSeen','1');
   setTimeout(()=>abrirPlanes(), 2000);
+}
+
+async function initUserData() {
+  if (!currentUser) return;
+
+  const ref = doc(db, 'users', currentUser.uid);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+
+  // 🔥 fuente de verdad
+  userFavs = data.favs || [];
+  userVisto = data.visto || [];
+
+  favItems = data.items || {};
+  vistoItems = data.vistoItems || {};
 }
 </script>
 </body>
