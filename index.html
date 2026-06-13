@@ -517,15 +517,27 @@ const PLATFORMS = [
 ];
 
 const PLATFORM_LINKS = {
-  'Netflix':      () => `https://www.netflix.com`,
-  'Max':          () => `https://www.max.com`,
-  'Prime Video':  () => `https://www.amazon.com/prime-video`,
-  'Disney+':      () => `https://www.disneyplus.com`,
-  'Apple TV+':    () => `https://tv.apple.com`,
-  'Paramount+':   () => `https://www.paramountplus.com`,
-  'Pluto TV':     () => `https://pluto.tv`,
-  'Tubi':         () => `https://tubitv.com/home`,
-  'Plex':         () => `https://www.plex.tv/watch-free`,
+  'Netflix':     () => `netflix://`,
+  'Max':         () => `max://`,
+  'Prime Video': () => `primevideo://`,
+  'Disney+':     () => `disneyplus://`,
+  'Apple TV+':   () => `videos://`,
+  'Paramount+':  () => `paramountplus://`,
+  'Pluto TV':    () => `pluto://`,
+  'Tubi':        () => `tubi://`,
+  'Plex':        () => `plex://`,
+};
+
+const PLATFORM_LINKS_WEB = {
+  'Netflix':     'https://www.netflix.com',
+  'Max':         'https://www.max.com',
+  'Prime Video': 'https://www.primevideo.com',
+  'Disney+':     'https://www.disneyplus.com',
+  'Apple TV+':   'https://tv.apple.com',
+  'Paramount+':  'https://www.paramountplus.com',
+  'Pluto TV':    'https://pluto.tv',
+  'Tubi':        'https://tubitv.com',
+  'Plex':        'https://www.plex.tv',
 };
 
 const GENRE_MOVIE = {'Acción':28,'Comedia':35,'Drama':18,'Terror':27,'Suspense':53,'Ciencia ficción':878,'Animación':16,'Documental':99,'Romance':10749,'Crimen':80,'Fantasía':14,'Aventura':12};
@@ -1138,14 +1150,13 @@ function abrirModal(item) {
 
   const platLink = PLATFORM_LINKS[item.plataforma];
   const ctaHtml = platLink
-  ? `<a href="${platLink()}" target="_blank" rel="noopener"
-        style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:10px 18px;
-                border-radius:8px;background:${platDef.color||'#333'};color:${platDef.tc||'#fff'};
-                font-size:13px;font-weight:600;text-decoration:none;transition:opacity .15s"
-        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-        <i class="ti ti-player-play-filled"></i> Abrir ${item.plataforma}
-      </a>`
-    : '';
+  ? `<a href="${platLink()}" 
+       onclick="setTimeout(()=>window.open('${PLATFORM_LINKS_WEB[item.plataforma]}','_blank'),1500)"
+       target="_blank" rel="noopener"
+       style="...tu estilo actual...">
+       <i class="ti ti-device-tv"></i> Abrir ${item.plataforma}
+     </a>`
+  : '';
   document.getElementById('modalCta').innerHTML = ctaHtml;
 
   document.getElementById('modalMeta').innerHTML = [
