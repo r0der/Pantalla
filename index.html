@@ -256,9 +256,8 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
 
   <!-- LOGO -->
   <div class="logo-wrap">
-  <img src="logo pantaYA.png" alt="PantaYA" style="height:35px;object-fit:contain">
-  <div class="logo-sub">Elegí rápido, mirá ya</div>
-</div>
+  <img src="logo pantaYA.png" alt="PantaYA" style="height:70px;object-fit:contain">
+  </div>
 
   <!-- FILTROS -->
   <div class="filters" id="filtersBar">
@@ -323,7 +322,7 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
 
   <!-- ACTION BAR -->
   <div class="action-bar">
-    <button class="btn btn-sec" onclick="resetFiltros()"><i class="ti ti-refresh"></i> Limpiar filtros</button>
+    <button class="btn btn-sec" onclick="resetFiltros()"><i class="ti ti-refresh"></i> Recargar</button>
     <button class="btn btn-gold" onclick="abrirPlanes()" style="margin-left:auto"><i class="ti ti-crown"></i> Planes</button>
     <span class="res-info" id="resInfo"></span>
   </div>
@@ -387,9 +386,8 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
   <div class="plans-box">
     <button class="plans-close" onclick="cerrarPlanes()"><i class="ti ti-x"></i></button>
     <div class="plans-header">
-      <div class="plans-logo">PANTA<span>YA</span></div>
-      <p>Elegí el plan que mejor se adapta a vos</p>
-    </div>
+      <img src="logo pantaYA.png" alt="PantaYA" style="height:60px;object-fit:contain;display:block;margin:0 auto .5rem">
+      </div>
     <div class="plans-grid">
       <div class="plan-card">
         <div class="plan-icon">👀</div>
@@ -397,10 +395,11 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
         <div class="plan-price">Gratis</div>
         <ul class="plan-feats">
           <li><i class="ti ti-check ok"></i> Top 10 por plataforma</li>
-          <li><i class="ti ti-check ok"></i> Filtro: Película o Serie</li>
+          <li><i class="ti ti-check ok"></i> Sólo Filtro: Película o Serie</li>
           <li><i class="ti ti-check ok"></i> Sinopsis completa</li>
           <li class="dim"><i class="ti ti-x no"></i> Sin trailers</li>
           <li class="dim"><i class="ti ti-x no"></i> Sin favoritos</li>
+          <li class="dim"><i class="ti ti-x no"></i> Sin marcar como visto</li>
           <li class="dim"><i class="ti ti-x no"></i> Sin filtros avanzados</li>
         </ul>
         <button class="plan-cta cta-anon" onclick="cerrarPlanes()">Seguir como visitante</button>
@@ -428,11 +427,12 @@ body{font-family:var(--ff);background:var(--bg);color:var(--text);min-height:100
         <div class="plan-name">Premium</div>
         <div class="plan-price">$1.99 <small>USD / mes</small></div>
         <ul class="plan-feats">
-          <li><i class="ti ti-check ok"></i> Top 200 — carga infinita</li>
+          <li><i class="ti ti-check ok"></i> Top 200 + Contenido</li>
           <li><i class="ti ti-check ok"></i> Todos los filtros dinámicos</li>
+          <li><i class="ti ti-check ok"></i> Ver trailers</li>
           <li><i class="ti ti-check ok"></i> Favoritos ilimitados</li>
           <li><i class="ti ti-check ok"></i> Marcar como visto</li>
-          <li><i class="ti ti-check ok"></i> Nuevos estrenos "Proximamente"</li>
+          <li><i class="ti ti-check ok"></i> Estrenos "Proximamente"</li>
           <li><i class="ti ti-check ok"></i> Badge ⭐ en tu perfil</li>
         </ul>
         <button class="plan-cta cta-prem" onclick="iniciarPago()">
@@ -1129,18 +1129,20 @@ function abrirModal(item) {
   `<i class="ti ti-eye${isVisto?'-check':''}"></i>`;
   document.getElementById('modalVistoBtn').onclick = () =>
   esPrem ? toggleVistoModal() : abrirPlanes();
+  document.getElementById('modalVistoBtn').title = isVisto ? 'Quitar de vistos' : 'Marcar como visto';
   document.getElementById('modalFavBtn').className =
   `modal-icon-btn ${isFav?'fav-active':''} ${esPrem?'':'locked-btn'}`;
   document.getElementById('modalFavBtn').innerHTML =
   `<i class="ti ti-heart"></i>`;
   document.getElementById('modalFavBtn').onclick = () =>
   esPrem ? toggleFavModal() : abrirPlanes();
+  document.getElementById('modalFavBtn').title = isFav ? 'Quitar de favoritos' : 'Agregar a favoritos';
   document.getElementById('modalSyn').textContent    = item.sinopsis||'Sin sinopsis disponible.';
 
   const ctaHtml = PLATFORM_LINKS[item.plataforma]
   ? `<a href="${PLATFORM_LINKS[item.plataforma]}" target="_blank" rel="noopener"
-       style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:10px 18px;
-              border-radius:8px;background:${platDef.color||'#333'};color:${platDef.tc||'#fff'};
+       style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:6px 14px;
+              border-radius:999px;background:${platDef.color||'#333'};color:${platDef.tc||'#fff'};
               font-size:13px;font-weight:600;text-decoration:none">
        <i class="ti ti-external-link"></i> Abrir ${item.plataforma}
      </a>`
